@@ -1,11 +1,30 @@
-#calculadora em c
+#include <ctype.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-void limparBuffer() {
-    int c;
-    while ((c = getchar()) != '\n' && c != EOF);
+static int lerLinha(char *entrada, size_t tamanho) {
+    if (fgets(entrada, tamanho, stdin) == NULL) {
+        return 0;
+    }
+
+    size_t comprimento = strlen(entrada);
+    if (comprimento > 0 && entrada[comprimento - 1] == '\n') {
+        return 1;
+    }
+
+    if (!feof(stdin)) {
+        int caractere;
+        while ((caractere = getchar()) != '\n' && caractere != EOF) {
+        }
+        return -1;
+    }
+
+    return 1;
 }
 
-void exibirMenu() {
+static void exibirMenu(void) {
     printf("===============================\n");
     printf("   Calculadora Simples\n");
     printf("===============================\n");
@@ -17,52 +36,128 @@ void exibirMenu() {
     printf("5. Sair\n");
 }
 
-int lerOpcao() {
-    int opcao;
+static int lerOpcao(int *opcao) {
+    char entrada[128];
+
     while (1) {
+        char *fim;
+        long valor;
+
         printf("Opção: ");
-        if (scanf("%d", &opcao) != 1) {
-            printf("Error: Entrada inválida. Digite um número inteiro entre 1 e 5.\n");
-            limparBuffer();
-        } else if (opcao < 1 || opcao > 5) {
-            printf("Error: Opção fora do intervalo. Escolha entre 1 e 5.\n");
-            limparBuffer();
+        fflush(stdout);
+        int estado = lerLinha(entrada, sizeof entrada);
+        if (estado == 0) {
+            return 0;
+        }
+        if (estado < 0) {
+            printf("Erro: Entrada inválida. Digite um número inteiro entre 1 e 5.\n");
+            continue;
+        }
+
+        errno = 0;
+        valor = strtol(entrada, &fim, 10);
+        while (isspace((unsigned char)*fim)) {
+            fim++;
+        }
+
+        if (fim == entrada || *fim != '\0' || errno == ERANGE) {
+            printf("Erro: Entrada inválida. Digite um número inteiro entre 1 e 5.\n");
+        } else if (valor < 1 || valor > 5) {
+            printf("Erro: Opção fora do intervalo. Escolha entre 1 e 5.\n");
         } else {
-            limparBuffer();
-            return opcao;
+            *opcao = (int)valor;
+            return 1;
         }
     }
 }
 
-double lerNumero(const char *mensagem) {
-    double num;
+static int lerNumero(const char *mensagem, double *numero) {
+    char entrada[128];
+
     while (1) {
+        char *fim;
+
         printf("%s", mensagem);
-        if (scanf("%lf", &num) != 1) {
-            printf("Error: Entrada inválida. Por favor, digite um número válido.\n");
-            limparBuffer();
+        fflush(stdout);
+        int estado = lerLinha(entrada, sizeof entrada);
+        if (estado == 0) {
+            return 0;
+        }
+        if (estado < 0) {
+            printf("Erro: Entrada inválida. Por favor, digite um número válido.\n");
+            continue;
+        }
+
+        errno = 0;
+        *numero = strtod(entrada, &fim);
+        while (isspace((unsigned char)*fim)) {
+            fim++;
+        }
+
+        if (fim == entrada || *fim != '\0' || errno == ERANGE) {
+            printf("Erro: Entrada inválida. Por favor, digite um número válido.\n");
         } else {
-            limparBuffer();
-            return num;
+            return 1;
         }
     }
 }
 
-int main() {
-    int opcao;
-    char continuar;
+static int lerContinuacao(int *continuar) {
+    char entrada[128];
 
-    do {
+    while (1) {
+        printf("Deseja realizar outra operação? (s/n): ");
+        fflush(stdout);
+        int estado = lerLinha(entrada, sizeof entrada);
+        if (estado == 0) {
+            return 0;
+        }
+        if (estado < 0) {
+            printf("Erro: Responda com 's' para sim ou 'n' para não.\n");
+            continue;
+        }
+
+        char *inicio = entrada;
+        while (isspace((unsigned char)*inicio)) {
+            inicio++;
+        }
+
+        char resposta = *inicio++;
+        while (isspace((unsigned char)*inicio)) {
+            inicio++;
+        }
+
+        if (*inicio != '\0' || (resposta != 's' && resposta != 'S'
+                && resposta != 'n' && resposta != 'N')) {
+            printf("Erro: Responda com 's' para sim ou 'n' para não.\n");
+        } else {
+            *continuar = resposta == 's' || resposta == 'S';
+            return 1;
+        }
+    }
+}
+
+int main(void) {
+    int opcao;
+    int continuar = 1;
+    double num1;
+    double num2;
+
+    while (continuar) {
         exibirMenu();
-        opcao = lerOpcao();
+        if (!lerOpcao(&opcao)) {
+            break;
+        }
 
         if (opcao == 5) {
             printf("Obrigado por usar a calculadora! Até a próxima.\n");
             break;
         }
 
-        double num1 = lerNumero("Digite o primeiro número: ");
-        double num2 = lerNumero("Digite o segundo número: ");
+        if (!lerNumero("Digite o primeiro número: ", &num1)
+                || !lerNumero("Digite o segundo número: ", &num2)) {
+            break;
+        }
 
         switch (opcao) {
             case 1:
@@ -83,16 +178,14 @@ int main() {
                 break;
         }
 
-        printf("Deseja realizar outra operação? (s/n): ");
-        scanf(" %c", &continuar);
-        limparBuffer();
-
-        if (continuar != 's' && continuar != 'S') {
+        if (!lerContinuacao(&continuar)) {
+            break;
+        }
+        if (!continuar) {
             printf("Obrigado por usar a calculadora! Até a próxima.\n");
             break;
         }
-
-    } while (1);
+    }
 
     return 0;
 }
